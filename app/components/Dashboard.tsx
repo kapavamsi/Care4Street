@@ -40,18 +40,22 @@ export default function Dashboard() {
           console.log('📍 City detected:', city, 'Committee:', committee);
           setCurrentCity(city);
           setCurrentCommittee(committee);
+          // Fetch reports for this city
+          fetchReports(city);
         },
         (err) => {
           console.warn('Geolocation error:', err);
           setCurrentCity('Bangalore');
           setCurrentCommittee('BBMP');
+          fetchReports('Bangalore');
         }
       );
     } else {
       setCurrentCity('Bangalore');
       setCurrentCommittee('BBMP');
+      fetchReports('Bangalore');
     }
-  }, []);
+  }, [refreshTrigger]);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -63,20 +67,18 @@ export default function Dashboard() {
     withImages: 0
   });
 
-  useEffect(() => {
-    fetchReports();
-    const interval = setInterval(() => {
-      fetchReports();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [refreshTrigger]);
-
-  const fetchReports = async () => {
+  const fetchReports = async (city?: string) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/reports');
+      const cityParam = city || currentCity;
+      const url = cityParam ? `/api/reports?city=${encodeURIComponent(cityParam)}` : '/api/reports';
+      console.log(`📊 Fetching reports for city: ${cityParam}`);
+      
+      const response = await fetch(url);
       const data = await response.json();
       const reportsData = data.reports || [];
+      console.log(`📊 Found ${reportsData.length} reports for ${cityParam}`);
+      
       setReports(reportsData);
       
       const withImages = reportsData.filter((r: any) => r.image_url && r.image_url.startsWith('http')).length;
@@ -114,7 +116,7 @@ export default function Dashboard() {
       });
 
       if (response.ok) {
-        fetchReports();
+        fetchReports(currentCity);
       }
     } catch (error) {
       console.error('Status update error:', error);
@@ -164,14 +166,14 @@ export default function Dashboard() {
             🏛️ {currentCommittee} Dashboard
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            📍 {currentCity} • Last updated: {lastUpdated || 'Loading...'} 
+            📍 {currentCity} • {reports.length} reports • Last updated: {lastUpdated || 'Loading...'} 
             {loading && ' (Refreshing...)'}
           </p>
         </div>
         <div className="flex gap-2">
           <ExportButton reports={reports} />
           <button
-            onClick={fetchReports}
+            onClick={() => fetchReports(currentCity)}
             disabled={loading}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${
               loading 
@@ -317,7 +319,7 @@ export default function Dashboard() {
               {filteredReports.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    No reports found
+                    No reports found in {currentCity}
                   </td>
                 </tr>
               )}
