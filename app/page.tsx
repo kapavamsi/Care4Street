@@ -1,18 +1,51 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import ReportModal from './components/ReportModal';
 import Dashboard from './components/Dashboard';
-import Map from './components/Map';
+import { getCityName, getCityCommittee } from '@/lib/city';
+
+const Map = dynamic(() => import('./components/Map'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p className="mt-4 text-gray-600 font-medium">Loading map...</p>
+      </div>
+    </div>
+  )
+});
 
 export default function Home() {
   const [showModal, setShowModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [currentCity, setCurrentCity] = useState('Bangalore');
+  const [currentCommittee, setCurrentCommittee] = useState('BBMP');
 
   useEffect(() => {
     setIsClient(true);
+    
+    // Detect user's city
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const city = getCityName(pos.coords.latitude, pos.coords.longitude);
+          const committee = getCityCommittee(pos.coords.latitude, pos.coords.longitude);
+          setCurrentCity(city);
+          setCurrentCommittee(committee);
+          console.log('📍 Main page - City:', city, 'Committee:', committee);
+        },
+        () => {
+          // Fallback to Bangalore
+          setCurrentCity('Bangalore');
+          setCurrentCommittee('BBMP');
+        }
+      );
+    }
   }, []);
 
   const handleLocationClick = (lat: number, lng: number) => {
@@ -68,7 +101,9 @@ export default function Home() {
           >
             ← Back to Map
           </button>
-          <span className="font-bold text-gray-800">🏛️ BBMP Dashboard</span>
+          <span className="font-bold text-gray-800">
+            🏛️ {currentCity} Dashboard
+          </span>
         </div>
         <Dashboard />
       </div>
@@ -79,11 +114,12 @@ export default function Home() {
     <main className="relative w-screen h-screen overflow-hidden">
       <Map onLocationClick={handleLocationClick} />
 
-      {/* Top Banner */}
+      {/* Top Banner - Now shows detected city */}
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white shadow-lg rounded-xl px-5 py-2.5 text-sm text-center max-w-sm border border-gray-100">
         <span className="font-bold text-gray-800">🏙️ Care4Street</span>
         <span className="text-gray-300 mx-2">|</span>
-        <span className="text-gray-600">Bangalore</span>
+        <span className="text-gray-600">{currentCity}</span>
+        <span className="text-gray-400 text-xs ml-1">• {currentCommittee}</span>
       </div>
 
       {/* Report Button - Bottom Right */}
