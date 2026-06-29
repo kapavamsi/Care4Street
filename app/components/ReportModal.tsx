@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, FormEvent, useRef } from 'react';
+import { useState, FormEvent, useRef, useEffect } from 'react';
 import { uploadImage } from '@/lib/upload';
+import { getCityName, getCityCommittee } from '@/lib/city';
 
 interface ReportModalProps {
   lat: number;
@@ -30,13 +31,32 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [cityName, setCityName] = useState<string>('');
+  const [committeeName, setCommitteeName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Detect city from coordinates
+    if (lat && lng) {
+      try {
+        const city = getCityName(lat, lng);
+        const committee = getCityCommittee(lat, lng);
+        console.log('📍 ReportModal - City:', city, 'Committee:', committee);
+        setCityName(city);
+        setCommitteeName(committee);
+      } catch (err) {
+        console.warn('City detection error:', err);
+        setCityName('Bangalore');
+        setCommitteeName('BBMP');
+      }
+    }
+  }, [lat, lng]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        setError('Image size exceeds 10MB limit. Please choose a smaller image.');
+        setError('Image size exceeds 10MB limit.');
         return;
       }
       setImageFile(file);
@@ -75,7 +95,6 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
 
       let finalImageUrl = imageUrl || '';
 
-      // If file upload method and we have a file
       if (uploadMethod === 'file' && imageFile) {
         setUploadStatus('📤 Uploading to S3...');
         setUploadProgress(30);
@@ -84,11 +103,9 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
           finalImageUrl = await uploadImage(imageFile, userId);
           setUploadProgress(100);
           setUploadStatus('✅ Uploaded to S3 successfully!');
-          console.log('✅ S3 upload successful:', finalImageUrl);
         } catch (uploadError: any) {
-          console.error('❌ S3 upload failed:', uploadError);
           setUploadStatus('❌ S3 upload failed');
-          setError('Failed to upload image to S3: ' + uploadError.message);
+          setError('Failed to upload image: ' + uploadError.message);
           setSubmitting(false);
           return;
         }
@@ -96,6 +113,10 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
 
       setUploadStatus('📤 Submitting report...');
       setUploadProgress(70);
+
+      // Use detected city or fallback
+      const reportCity = cityName || 'Bangalore';
+      const reportCommittee = committeeName || 'BBMP';
 
       const response = await fetch('/api/reports', {
         method: 'POST',
@@ -106,7 +127,10 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
           lat,
           lng,
           description,
-          imageUrl: finalImageUrl
+          imageUrl: finalImageUrl,
+          city: reportCity,
+          country: 'India',
+          cityCommittee: reportCommittee
         })
       });
 
@@ -116,7 +140,6 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
         throw new Error(data.error || 'Failed to submit report');
       }
 
-      console.log('✅ Report submitted successfully!', data);
       setUploadProgress(100);
       setUploadStatus('✅ Report submitted!');
       
@@ -126,8 +149,7 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
       }, 1000);
 
     } catch (err: any) {
-      console.error('❌ Error:', err);
-      setError(err.message || 'Failed to submit report. Please try again.');
+      setError(err.message || 'Failed to submit report.');
     } finally {
       setSubmitting(false);
     }
@@ -136,12 +158,14 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="mb-5 flex items-start justify-between border-b border-gray-200 pb-3">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Report an Issue</h2>
             <p className="mt-1 text-sm text-gray-600">
               📍 {lat.toFixed(6)}, {lng.toFixed(6)}
+            </p>
+            <p className="text-xs text-blue-600 mt-0.5">
+              🏙️ {cityName || 'Detecting...'} • 🏛️ {committeeName || '...'}
             </p>
           </div>
           <button
@@ -153,9 +177,7 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Issue Type */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               Issue Type <span className="text-red-500">*</span>
@@ -175,7 +197,6 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
             </select>
           </div>
 
-          {/* Description */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               Description <span className="text-red-500">*</span>
@@ -190,13 +211,11 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
             />
           </div>
 
-          {/* Image Upload */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               Image <span className="text-gray-400">(optional)</span>
             </label>
             
-            {/* Upload method toggle */}
             <div className="flex gap-2 mb-3">
               <button
                 type="button"
@@ -286,20 +305,18 @@ export default function ReportModal({ lat, lng, onClose, onSubmit }: ReportModal
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Enter a direct URL to an image that is already hosted online.
+                  Enter a direct URL to an image.
                 </p>
               </div>
             )}
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-700 border border-red-200">
               ⚠️ {error}
             </div>
           )}
 
-          {/* Buttons */}
           <div className="flex gap-3 pt-2">
             <button
               type="button"

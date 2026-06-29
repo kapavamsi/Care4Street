@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useReports } from '@/app/context/ReportContext';
 import ExportButton from './ExportButton';
 import ImageViewer from './ImageViewer';
+import { getCityName, getCityCommittee } from '@/lib/city';
 
 interface Report {
   id: string;
@@ -15,6 +16,9 @@ interface Report {
   lng: number;
   image_url: string | null;
   created_at: string;
+  city?: string;
+  country?: string;
+  city_committee?: string;
 }
 
 export default function Dashboard() {
@@ -22,7 +26,34 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [currentCity, setCurrentCity] = useState<string>('Bangalore');
+  const [currentCommittee, setCurrentCommittee] = useState<string>('BBMP');
   const { refreshTrigger } = useReports();
+
+  useEffect(() => {
+    // Detect user's city from GPS
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const city = getCityName(pos.coords.latitude, pos.coords.longitude);
+          const committee = getCityCommittee(pos.coords.latitude, pos.coords.longitude);
+          console.log('📍 City detected:', city, 'Committee:', committee);
+          setCurrentCity(city);
+          setCurrentCommittee(committee);
+        },
+        (err) => {
+          console.warn('Geolocation error:', err);
+          // Fallback to Bangalore
+          setCurrentCity('Bangalore');
+          setCurrentCommittee('BBMP');
+        }
+      );
+    } else {
+      // Fallback to Bangalore
+      setCurrentCity('Bangalore');
+      setCurrentCommittee('BBMP');
+    }
+  }, []);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -30,16 +61,15 @@ export default function Dashboard() {
     assigned: 0,
     in_progress: 0,
     resolved: 0,
-    highUrgency: 0
+    highUrgency: 0,
+    withImages: 0
   });
 
   useEffect(() => {
     fetchReports();
-    
     const interval = setInterval(() => {
       fetchReports();
     }, 10000);
-
     return () => clearInterval(interval);
   }, [refreshTrigger]);
 
@@ -51,6 +81,8 @@ export default function Dashboard() {
       const reportsData = data.reports || [];
       setReports(reportsData);
       
+      const withImages = reportsData.filter((r: any) => r.image_url && r.image_url.startsWith('http')).length;
+      
       const statsData = {
         total: reportsData.length,
         submitted: reportsData.filter((r: any) => r.status === 'submitted').length,
@@ -60,14 +92,15 @@ export default function Dashboard() {
         highUrgency: reportsData.filter((r: any) => {
           const daysOld = Math.floor((Date.now() - new Date(r.created_at).getTime()) / (1000 * 60 * 60 * 24));
           return (r.upvote_count * 10) + (daysOld * 5) > 25;
-        }).length
+        }).length,
+        withImages
       };
       setStats(statsData);
       
       const now = new Date();
       setLastUpdated(now.toLocaleTimeString());
     } catch (error) {
-      console.error('❌ Dashboard: Error fetching reports:', error);
+      console.error('Dashboard error:', error);
     } finally {
       setLoading(false);
     }
@@ -86,7 +119,7 @@ export default function Dashboard() {
         fetchReports();
       }
     } catch (error) {
-      console.error('❌ Dashboard: Error updating status:', error);
+      console.error('Status update error:', error);
     }
   };
 
@@ -129,9 +162,11 @@ export default function Dashboard() {
     <div className="p-6 h-full overflow-y-auto bg-gray-50">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">🏛️ BBMP Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            🏛️ {currentCity} Dashboard
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Last updated: {lastUpdated || 'Loading...'} 
+            🏛️ {currentCommittee} • Last updated: {lastUpdated || 'Loading...'} 
             {loading && ' (Refreshing...)'}
           </p>
         </div>
@@ -151,8 +186,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-7 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
           <div className="text-sm text-gray-500">Total Reports</div>
@@ -177,9 +211,12 @@ export default function Dashboard() {
           <div className="text-2xl font-bold text-red-600">{stats.highUrgency}</div>
           <div className="text-sm text-gray-500">⚠️ High Urgency</div>
         </div>
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-indigo-200">
+          <div className="text-2xl font-bold text-indigo-600">{stats.withImages}</div>
+          <div className="text-sm text-gray-500">📷 With Images</div>
+        </div>
       </div>
 
-      {/* Filter */}
       <div className="flex gap-2 mb-4 flex-wrap">
         <button
           onClick={() => setFilter('all')}
@@ -223,7 +260,6 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Reports Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -252,7 +288,7 @@ export default function Dashboard() {
                     </td>
                     <td className="px-4 py-3 font-medium capitalize">{report.issue_type.replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={report.description}>
-                      {report.description}
+                      {report.description || 'No description'}
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-blue-600">{report.upvote_count || 0}</td>
                     <td className="px-4 py-3 text-center">
