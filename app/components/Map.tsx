@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { useReports } from '@/app/context/ReportContext';
+import { getCity } from '@/lib/city';
 
 interface MapProps {
   onLocationClick: (lat: number, lng: number) => void;
@@ -14,6 +16,32 @@ export default function Map({ onLocationClick }: MapProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { triggerRefresh } = useReports();
+  const [center, setCenter] = useState<[number, number]>([77.5946, 12.9716]); // Default Bangalore
+  const [cityName, setCityName] = useState('Bangalore');
+
+  useEffect(() => {
+    // Detect user's city and set map center
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            const city = getCity(latitude, longitude);
+            setCenter([city.lng, city.lat]);
+            setCityName(city.city_name);
+            console.log('🗺️ Map centering on:', city.city_name, city.country);
+          } catch (err) {
+            console.warn('City detection error, using Bangalore:', err);
+            setCenter([77.5946, 12.9716]);
+          }
+        },
+        (err) => {
+          console.warn('Geolocation error, using Bangalore:', err);
+          setCenter([77.5946, 12.9716]);
+        }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -33,17 +61,19 @@ export default function Map({ onLocationClick }: MapProps) {
     try {
       mapboxgl.accessToken = token;
 
+      console.log('🗺️ Initializing map at:', center[0], center[1]);
+
       const newMap = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: [77.5946, 12.9716],
+        center: center,
         zoom: 13,
       });
 
       map.current = newMap;
 
       newMap.on('load', () => {
-        console.log('✅ Map loaded');
+        console.log('✅ Map loaded at:', cityName);
         setLoading(false);
         if (map.current) {
           fetchAndDisplayReports(map.current);
@@ -75,7 +105,7 @@ export default function Map({ onLocationClick }: MapProps) {
       setError(err.message);
       setLoading(false);
     }
-  }, []);
+  }, [center]);
 
   const fetchAndDisplayReports = async (mapInstance: mapboxgl.Map) => {
     try {
@@ -94,7 +124,6 @@ export default function Map({ onLocationClick }: MapProps) {
         const buttonId = `upvote-btn-${report.id}`;
         const countId = `upvote-count-${report.id}`;
         
-        // Create image preview HTML
         const imageHTML = report.image_url 
           ? `<div style="margin-top: 6px;">
                <img 
