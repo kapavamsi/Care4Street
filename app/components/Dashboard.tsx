@@ -43,13 +43,11 @@ export default function Dashboard() {
         },
         (err) => {
           console.warn('Geolocation error:', err);
-          // Fallback to Bangalore
           setCurrentCity('Bangalore');
           setCurrentCommittee('BBMP');
         }
       );
     } else {
-      // Fallback to Bangalore
       setCurrentCity('Bangalore');
       setCurrentCommittee('BBMP');
     }
@@ -163,10 +161,10 @@ export default function Dashboard() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
-            🏛️ {currentCity} Dashboard
+            🏛️ {currentCommittee} Dashboard
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            🏛️ {currentCommittee} • Last updated: {lastUpdated || 'Loading...'} 
+            📍 {currentCity} • Last updated: {lastUpdated || 'Loading...'} 
             {loading && ' (Refreshing...)'}
           </p>
         </div>

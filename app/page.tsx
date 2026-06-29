@@ -29,7 +29,6 @@ export default function Home() {
   useEffect(() => {
     setIsClient(true);
     
-    // Detect user's city
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -37,10 +36,8 @@ export default function Home() {
           const committee = getCityCommittee(pos.coords.latitude, pos.coords.longitude);
           setCurrentCity(city);
           setCurrentCommittee(committee);
-          console.log('📍 Main page - City:', city, 'Committee:', committee);
         },
         () => {
-          // Fallback to Bangalore
           setCurrentCity('Bangalore');
           setCurrentCommittee('BBMP');
         }
@@ -102,7 +99,7 @@ export default function Home() {
             ← Back to Map
           </button>
           <span className="font-bold text-gray-800">
-            🏛️ {currentCity} Dashboard
+            🏛️ {currentCommittee} Dashboard
           </span>
         </div>
         <Dashboard />
@@ -114,7 +111,6 @@ export default function Home() {
     <main className="relative w-screen h-screen overflow-hidden">
       <Map onLocationClick={handleLocationClick} />
 
-      {/* Top Banner - Now shows detected city */}
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white shadow-lg rounded-xl px-5 py-2.5 text-sm text-center max-w-sm border border-gray-100">
         <span className="font-bold text-gray-800">🏙️ Care4Street</span>
         <span className="text-gray-300 mx-2">|</span>
@@ -122,7 +118,6 @@ export default function Home() {
         <span className="text-gray-400 text-xs ml-1">• {currentCommittee}</span>
       </div>
 
-      {/* Report Button - Bottom Right */}
       <button
         onClick={handleCurrentLocation}
         className="fixed bottom-8 right-8 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-full shadow-lg hover:shadow-xl transition-all z-10 flex items-center gap-2 font-medium"
@@ -131,7 +126,6 @@ export default function Home() {
         Report Issue
       </button>
 
-      {/* Dashboard Button - Bottom Left */}
       <button
         onClick={() => setShowDashboard(true)}
         className="fixed bottom-8 left-8 z-10 bg-purple-600 hover:bg-purple-700 text-white px-5 py-3.5 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center gap-2 font-medium"
